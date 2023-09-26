@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import jwt
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 
@@ -27,15 +27,30 @@ class User(BaseModel):
 class UserDB(User):
     password: str
 
-def search_user_db(name: str):
-    if name in users_db:
-        return UserDB(**users_db[name])
+def search_user_db(email: str):
+    if email in users_db:
+        return UserDB(**users_db[email])
+
+def search_user(email: str):
+    if email in users_db:
+        return User(**users_db[email])
 
 async def auth_user(token: str = Depends(oauth2)):
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+    
+    exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                             detail="El usuario no está autorizado", 
                             headers={"WWW-Authenticate" : "Bearer"})
+    
+    try:
+        email = jwt.decode(token, SECRET,algorithms=ALGORITHM).get("sub")
+        if email is None:
+            raise exception
+    except JWTError:
+        raise exception
+    
+    return search_user(email)
+
+
     
 
 async def current_user(user: User = Depends(auth_user)):
@@ -46,7 +61,7 @@ async def current_user(user: User = Depends(auth_user)):
     return user
 
 users_db = {
-    "Vert" : {
+    "test@test.com" : {
         "name": "Vert",
         "surname": "Apellido",
         "birthdate": "19/01/2001",
@@ -55,7 +70,7 @@ users_db = {
         "disabled": False,
         "password": "$2a$12$IWJqETVqFmrPHJR/qk.zD.Jp9MooQSxkyl3i1uGAO0yQlCdvTHYkK"
     },
-    "German" : {
+    "test2@test.com" : {
         "name": "German",
         "surname": "Traidor",
         "birthdate": "20/01/2001",
